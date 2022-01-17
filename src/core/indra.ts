@@ -5,15 +5,18 @@ export type TimeDelta = number
 
 export type Maybe<T> = T | undefined
 export type MaybeErr = Maybe<Error>
+export type Result<T> = T | Error
 
 export interface Task {
     id: TaskId
+    createDate: Date
     name: string
+    isDone: boolean
     probabilitySuccess: Probability
     estimatedTimeToCompletion: TimeDelta
+    Lambda(): number
 }
 
-export type Result<T> = T | Error
 
 export interface TaskManager<T> {
     PutTask(task: Task, dependencies?: TaskId[], dependees?: TaskId[]): MaybeErr
@@ -22,6 +25,11 @@ export interface TaskManager<T> {
     AddDependency(dependeeTask: TaskId, dependentTask: TaskId): MaybeErr
     RemoveDependency(dependeeTask: TaskId, dependentTask: TaskId): MaybeErr
     GetRepresentation(): T
+
+    GetTopGoals(): TaskId[]
+    GetTaskDependencies(taskId: TaskId): Result<TaskId[]>
+    GetTaskDependees(taskId: TaskId): Result<TaskId[]>
+    GetTodoTasks(rootTaskId: TaskId): Result<TaskId[]>
 }
 
 type Dependencies = { [k: TaskId]: boolean }
@@ -77,6 +85,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
     }
 
     RemoveTask(taskId: TaskId): MaybeErr {
+        // not idempotent if fails
         if (!this.doesExist(taskId)) {
             return new Error(`task does not exist [TaskId: ${taskId}]`)
         }
@@ -108,6 +117,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
     }
 
     AddDependency(dependeeTask: string, dependentTask: string,): MaybeErr {
+        // TODO check if creates cycle?
         if (!this.doesExist(dependeeTask)) {
             return new Error(`dependee task does exist [TaskId: ${dependeeTask}]`)
         }
@@ -152,5 +162,59 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
 
     GetRepresentation(): AdjacencyMap {
         return this.graph
+    }
+
+    GetTopGoals(): TaskId[] {
+        // tasks with no dependees
+        // can cache on write/delete
+        const tasks: TaskId[] = []
+        for (const t in this.graph) {
+            if (Object.keys(this.graph[t].dependees).length == 0) {
+                tasks.push(t)
+            }
+        }
+        return tasks
+    }
+
+    GetTaskDependencies(taskId: TaskId): Result<TaskId[]> {
+        if (!this.doesExist(taskId)) {
+            return new Error(`task does exist [TaskId: ${taskId}]`)
+        }
+        return Object.keys(this.graph[taskId].dependencies)
+    }
+
+    GetTaskDependees(taskId: TaskId): Result<TaskId[]> {
+        if (!this.doesExist(taskId)) {
+            return new Error(`task does exist [TaskId: ${taskId}]`)
+        }
+        return Object.keys(this.graph[taskId].dependees)
+    }
+
+    GetTodoTasks(rootTaskId: TaskId): Result<TaskId[]> {
+        if (!this.doesExist(rootTaskId)) {
+            return new Error(`task does exist [TaskId: ${rootTaskId}]`)
+        }
+        // traverse dependencies & get leaf nodes
+        // can cache on write/delete
+        // recurse search get leaf
+
+        let tasks: Set<TaskId> = new Set()
+        for (const t in this.graph[rootTaskId].dependencies) {
+            const lt = this.getDependencyLeaf(t)
+            lt.forEach((l) => tasks.add(l))
+        }
+        return Array.from(tasks.values())
+    }
+
+    getDependencyLeaf(taskId: TaskId): Set<TaskId> {
+        if (Object.keys(this.graph[taskId].dependencies).length == 0) {
+            return new Set([taskId])
+        }
+        let tasks: Set<TaskId> = new Set()
+        for (const t in this.graph[taskId].dependencies) {
+            const lt = this.getDependencyLeaf(t)
+            lt.forEach((l) => tasks.add(l))
+        }
+        return tasks
     }
 }
