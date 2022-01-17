@@ -1,7 +1,11 @@
+import { Heap } from 'heap-js';
+
+
 export type TaskId = string
 
 export type Probability = number
 export type TimeDelta = number
+export type Sum = number
 
 export type Maybe<T> = T | undefined
 export type MaybeErr = Maybe<Error>
@@ -29,7 +33,8 @@ export interface TaskManager<T> {
     GetTopGoals(): TaskId[]
     GetTaskDependencies(taskId: TaskId): Result<TaskId[]>
     GetTaskDependees(taskId: TaskId): Result<TaskId[]>
-    GetTodoTasks(rootTaskId: TaskId): Result<TaskId[]>
+    CanTaskBeDone(taskId: TaskId): Result<boolean>
+    GetTaskOrdering(rootTaskId: TaskId): Result<TaskId[]>
 }
 
 type Dependencies = Set<TaskId>
@@ -157,7 +162,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         // can cache on write/delete
         const tasks: TaskId[] = []
         for (const t in this.graph) {
-            if (Object.keys(this.graph[t].dependees).length == 0) {
+            if (this.graph[t].dependees.size == 0) {
                 tasks.push(t)
             }
         }
@@ -178,32 +183,92 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         return Array.from(this.graph[taskId].dependees.values())
     }
 
-    GetTodoTasks(rootTaskId: TaskId): Result<TaskId[]> {
+
+    GetTaskOrdering(rootTaskId: TaskId): Result<TaskId[]> {
         if (!this.doesExist(rootTaskId)) {
             return new Error(`task does exist [TaskId: ${rootTaskId}]`)
         }
-        // traverse dependencies & get leaf nodes
-        // can cache on write/delete
-        // recurse search get leaf
-        // should return as toplogical ordering???
+        // 1. walk dag and calculate values
+        const sumValues = this.calculateGraphSums(rootTaskId)
+        // 2. priority Q
+        // - put leaves in Q
+        // - pop off highest value and add to topoplogical ordering list
+        // - put new leaves in Q 
+        // - repeat til no more nodes
+        const comp = (a: TaskId, b: TaskId) => sumValues[a] - sumValues[b]
+        const heap = new Heap<TaskId>(comp);
 
-        let tasks: Set<TaskId> = new Set()
-        for (const t in this.graph[rootTaskId].dependencies) {
-            const lt = this.getDependencyLeaf(t)
-            lt.forEach((l) => tasks.add(l))
+        const leaves = this.getDependencyLeaves(rootTaskId)
+        for (const l in leaves) {
+            heap.push(l)
         }
-        return Array.from(tasks.values())
+
+        const tasks: TaskId[] = []
+        while (!heap.isEmpty()) {
+            const task = heap.pop()
+            if (task == undefined) {
+                // maybe return an error?
+                break
+            }
+            tasks.push(task)
+
+            const newLeaves = this.getPotentialNewLeaves(task)
+            for (const l in newLeaves) {
+                heap.push(l)
+            }
+        }
+
+        return tasks
     }
 
-    getDependencyLeaf(taskId: TaskId): Set<TaskId> {
+    getPotentialNewLeaves(taskId: TaskId): TaskId[] {
+        // this is hard since graph is changing
+        // TODO
+        this.graph[taskId].dependees
+        return []
+    }
+
+    calculateGraphSums(rootTaskId: TaskId): SumValues {
+        let sumValues = {}
+        this.dependentDfsSum(rootTaskId, 0, sumValues)
+        return sumValues
+    }
+
+    dependentDfsSum(taskId: TaskId, currSum: Sum, values: SumValues): void {
+        const task = this.tasks[taskId]
+        const newSum = task.Lambda() + currSum
+        if (taskId in values) {
+            values[taskId] += newSum
+        } else {
+            values[taskId] = newSum
+        }
+
+        for (const t in this.graph[taskId].dependencies) {
+            this.dependentDfsSum(t, newSum, values)
+        }
+
+        return
+    }
+
+    getDependencyLeaves(taskId: TaskId): Set<TaskId> {
         if (Object.keys(this.graph[taskId].dependencies).length == 0) {
             return new Set([taskId])
         }
         let tasks: Set<TaskId> = new Set()
         for (const t in this.graph[taskId].dependencies) {
-            const lt = this.getDependencyLeaf(t)
+            const lt = this.getDependencyLeaves(t)
             lt.forEach((l) => tasks.add(l))
         }
         return tasks
     }
+
+    CanTaskBeDone(taskId: TaskId): Result<boolean> {
+        if (!this.doesExist(taskId)) {
+            return new Error(`task does exist [TaskId: ${taskId}]`)
+        }
+        return false
+    }
+
 }
+
+type SumValues = { [k: TaskId]: Sum }
