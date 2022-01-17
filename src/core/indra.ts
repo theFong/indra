@@ -32,8 +32,8 @@ export interface TaskManager<T> {
     GetTodoTasks(rootTaskId: TaskId): Result<TaskId[]>
 }
 
-type Dependencies = { [k: TaskId]: boolean }
-type Dependees = { [k: TaskId]: boolean }
+type Dependencies = Set<TaskId>
+type Dependees = Set<TaskId>
 type Connections = { dependencies: Dependencies, dependees: Dependees }
 export interface AdjacencyMap {
     [k: TaskId]: Connections
@@ -54,8 +54,8 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
 
         if (!(task.id in this.graph)) {
             this.graph[task.id] = {
-                dependees: {},
-                dependencies: {}
+                dependees: new Set(),
+                dependencies: new Set()
             }
         }
 
@@ -117,7 +117,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
     }
 
     AddDependency(dependeeTask: string, dependentTask: string,): MaybeErr {
-        // TODO check if creates cycle?
+        // TODO check and prevent if creates cycle?
         if (!this.doesExist(dependeeTask)) {
             return new Error(`dependee task does exist [TaskId: ${dependeeTask}]`)
         }
@@ -126,8 +126,8 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             return new Error(`dependent task does exist [TaskId: ${dependentTask}]`)
         }
 
-        this.graph[dependeeTask].dependencies[dependentTask] = true
-        this.graph[dependentTask].dependees[dependeeTask] = true
+        this.graph[dependeeTask].dependencies.add(dependentTask)
+        this.graph[dependentTask].dependees.add(dependeeTask)
 
         return
     }
@@ -141,21 +141,9 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             return new Error(`dependent task does exist [TaskId: ${dependentTask}]`)
         }
 
-        const newDependencies: Dependencies = {}
-        for (const t in this.graph[dependeeTask].dependencies) {
-            if (t !== dependentTask) {
-                newDependencies[t] = true
-            }
-        }
-        this.graph[dependeeTask].dependencies = newDependencies
+        this.graph[dependeeTask].dependencies.delete(dependentTask)
 
-        const newDependees: Dependees = {}
-        for (const t in this.graph[dependentTask].dependees) {
-            if (t !== dependeeTask) {
-                newDependees[t] = true
-            }
-        }
-        this.graph[dependentTask].dependees = newDependees
+        this.graph[dependentTask].dependees.delete(dependeeTask)
 
         return
     }
@@ -180,14 +168,14 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         if (!this.doesExist(taskId)) {
             return new Error(`task does exist [TaskId: ${taskId}]`)
         }
-        return Object.keys(this.graph[taskId].dependencies)
+        return Array.from(this.graph[taskId].dependencies.values())
     }
 
     GetTaskDependees(taskId: TaskId): Result<TaskId[]> {
         if (!this.doesExist(taskId)) {
             return new Error(`task does exist [TaskId: ${taskId}]`)
         }
-        return Object.keys(this.graph[taskId].dependees)
+        return Array.from(this.graph[taskId].dependees.values())
     }
 
     GetTodoTasks(rootTaskId: TaskId): Result<TaskId[]> {
@@ -197,6 +185,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         // traverse dependencies & get leaf nodes
         // can cache on write/delete
         // recurse search get leaf
+        // should return as toplogical ordering???
 
         let tasks: Set<TaskId> = new Set()
         for (const t in this.graph[rootTaskId].dependencies) {
