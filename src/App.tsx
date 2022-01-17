@@ -80,7 +80,6 @@ const initialElements: any = [
     style: { border: '1px solid #777', padding: 10 },
     position: { x: 750, y: 300 },
   },
-
   {
     id: 'horizontal-e1-2',
     source: 'horizontal-1',
