@@ -6,6 +6,7 @@ export type TaskId = string
 export type Probability = number
 export type TimeDelta = number
 export type Sum = number
+export type SumValues = { [k: TaskId]: Sum }
 
 export type Maybe<T> = T | undefined
 export type MaybeErr = Maybe<Error>
@@ -109,12 +110,41 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             }
         }
 
+        const newGraph: AdjacencyMap = {}
+        for (const t in this.graph) {
+            if (t !== taskId) {
+                newGraph[t] = this.graph[t]
+            }
+        }
+        this.graph = newGraph
+
         const newTasks: Tasks = {}
         for (const t in this.tasks) {
             if (t !== taskId) {
                 newTasks[t] = this.tasks[t]
             }
         }
+        this.tasks = newTasks
+    }
+
+    removeTask(taskId: TaskId, graph: AdjacencyMap): AdjacencyMap {
+        for (const d in this.graph[taskId].dependencies) {
+            graph = this.removeDependency(taskId, d, graph)
+        }
+
+        for (const d in this.graph[taskId].dependees) {
+            graph = this.removeDependency(d, taskId, graph)
+        }
+
+        const newGraph: AdjacencyMap = {}
+        for (const t in graph) {
+            if (t !== taskId) {
+                newGraph[t] = graph[t]
+            }
+        }
+        graph = newGraph
+
+        return graph
     }
 
     GetTask(taskId: string): Result<Task> {
@@ -146,11 +176,17 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             return new Error(`dependent task does exist [TaskId: ${dependentTask}]`)
         }
 
-        this.graph[dependeeTask].dependencies.delete(dependentTask)
-
-        this.graph[dependentTask].dependees.delete(dependeeTask)
+        this.graph = this.removeDependency(dependeeTask, dependentTask, this.graph)
 
         return
+    }
+
+    removeDependency(dependeeTask: TaskId, dependentTask: TaskId, graph: AdjacencyMap): AdjacencyMap {
+        graph[dependeeTask].dependencies.delete(dependentTask)
+
+        graph[dependentTask].dependees.delete(dependeeTask)
+
+        return graph
     }
 
     GetRepresentation(): AdjacencyMap {
@@ -203,6 +239,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             heap.push(l)
         }
 
+        let graph: AdjacencyMap = { ...this.graph }
         const tasks: TaskId[] = []
         while (!heap.isEmpty()) {
             const task = heap.pop()
@@ -212,20 +249,26 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             }
             tasks.push(task)
 
-            const newLeaves = this.getPotentialNewLeaves(task)
+
+            const newLeaves = this.getPotentialNewLeaves(task, graph)
             for (const l in newLeaves) {
                 heap.push(l)
             }
+
+            graph = this.removeTask(task, graph)
         }
 
         return tasks
     }
 
-    getPotentialNewLeaves(taskId: TaskId): TaskId[] {
-        // this is hard since graph is changing
-        // TODO
-        this.graph[taskId].dependees
-        return []
+    getPotentialNewLeaves(taskId: TaskId, graph: AdjacencyMap): TaskId[] {
+        const newLeaves: TaskId[] = []
+        for (const t in graph[taskId].dependees) {
+            if (graph[t].dependencies.size == 1 && taskId in graph[t].dependencies) { // second part of check may not be necesssary
+                newLeaves.push(t)
+            }
+        }
+        return newLeaves
     }
 
     calculateGraphSums(rootTaskId: TaskId): SumValues {
@@ -270,5 +313,3 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
     }
 
 }
-
-type SumValues = { [k: TaskId]: Sum }
