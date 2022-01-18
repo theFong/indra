@@ -1,3 +1,4 @@
+import { v4 as uuid } from 'uuid';
 import { Heap } from 'heap-js';
 
 
@@ -22,10 +23,31 @@ export interface Task {
     Lambda(): number
 }
 
+export class DefaultTask implements Task {
+    id: TaskId
+    createDate: Date;
+    name: string
+    isDone: boolean
+    probabilitySuccess: Probability;
+    estimatedTimeToCompletion: TimeDelta
+    constructor(name: string, probabilitySuccess: Probability, estimatedTimeToCompletion: TimeDelta) {
+        this.id = uuid()
+        this.createDate = new Date()
+        this.name = name
+        this.isDone = false
+        this.probabilitySuccess = probabilitySuccess
+        this.estimatedTimeToCompletion = estimatedTimeToCompletion
+    }
+
+    Lambda(): number {
+        return Math.log(1 / this.probabilitySuccess) / this.estimatedTimeToCompletion
+    }
+}
+
 
 export interface TaskManager<T> {
     PutTask(task: Task, dependencies?: TaskId[], dependees?: TaskId[]): MaybeErr
-    GetTask(taskId: TaskId): Result<Task>
+    GetTask(taskId: TaskId): Maybe<Task>
     RemoveTask(taskId: TaskId): MaybeErr
     AddDependency(dependeeTask: TaskId, dependentTask: TaskId): MaybeErr
     RemoveDependency(dependeeTask: TaskId, dependentTask: TaskId): MaybeErr
@@ -147,7 +169,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         return graph
     }
 
-    GetTask(taskId: string): Result<Task> {
+    GetTask(taskId: string): Maybe<Task> {
         return this.tasks[taskId]
     }
 
