@@ -88,22 +88,21 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         }
 
         if (dependencies != undefined) {
-            dependencies.forEach(d => {
+            for (const d of dependencies) {
                 const err = this.AddDependency(task.id, d)
                 if (err != undefined) {
                     return err
                 }
-            });
+            }
         }
 
         if (dependees != undefined) {
-            dependees.forEach(d => {
+            for (const d of dependees) {
                 const err = this.AddDependency(d, task.id)
                 if (err != undefined) {
                     return err
                 }
-            })
-
+            }
         }
         return
     }
@@ -118,14 +117,14 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             return new Error(`task does not exist [TaskId: ${taskId}]`)
         }
 
-        for (const d in this.graph[taskId].dependencies) {
+        for (const d of this.graph[taskId].dependencies) {
             const err = this.RemoveDependency(taskId, d)
             if (err != undefined) {
                 return err
             }
         }
 
-        for (const d in this.graph[taskId].dependees) {
+        for (const d of this.graph[taskId].dependees) {
             const err = this.RemoveDependency(d, taskId)
             if (err != undefined) {
                 return err
@@ -150,13 +149,13 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
     }
 
     removeTask(taskId: TaskId, graph: AdjacencyMap): AdjacencyMap {
-        for (const d in this.graph[taskId].dependencies) {
+        this.graph[taskId].dependencies.forEach((d) => {
             graph = this.removeDependency(taskId, d, graph)
-        }
+        })
 
-        for (const d in this.graph[taskId].dependees) {
+        this.graph[taskId].dependees.forEach((d) => {
             graph = this.removeDependency(d, taskId, graph)
-        }
+        })
 
         const newGraph: AdjacencyMap = {}
         for (const t in graph) {
@@ -220,7 +219,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         // can cache on write/delete
         const tasks: TaskId[] = []
         for (const t in this.graph) {
-            if (this.graph[t].dependees.size == 0) {
+            if (this.graph[t].dependees.size == 0) { // TODO filter out done
                 tasks.push(t)
             }
         }
@@ -257,9 +256,10 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         const heap = new Heap<TaskId>(comp);
 
         const leaves = this.getDependencyLeaves(rootTaskId)
-        for (const l in leaves) {
+
+        leaves.forEach((l) => {
             heap.push(l)
-        }
+        })
 
         let graph: AdjacencyMap = { ...this.graph }
         const tasks: TaskId[] = []
@@ -271,25 +271,25 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             }
             tasks.push(task)
 
-
             const newLeaves = this.getPotentialNewLeaves(task, graph)
-            for (const l in newLeaves) {
+            newLeaves.forEach((l) => {
                 heap.push(l)
-            }
+            })
 
             graph = this.removeTask(task, graph)
         }
+
 
         return tasks
     }
 
     getPotentialNewLeaves(taskId: TaskId, graph: AdjacencyMap): TaskId[] {
         const newLeaves: TaskId[] = []
-        for (const t in graph[taskId].dependees) {
-            if (graph[t].dependencies.size == 1 && taskId in graph[t].dependencies) { // second part of check may not be necesssary
+        graph[taskId].dependees.forEach((t) => {
+            if (graph[t].dependencies.size == 1 && graph[t].dependencies.has(taskId)) { // second part of check may not be necesssary
                 newLeaves.push(t)
             }
-        }
+        })
         return newLeaves
     }
 
@@ -308,22 +308,24 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
             values[taskId] = newSum
         }
 
-        for (const t in this.graph[taskId].dependencies) {
+        this.graph[taskId].dependencies.forEach((t) => {
             this.dependentDfsSum(t, newSum, values)
-        }
+        })
 
         return
     }
 
     getDependencyLeaves(taskId: TaskId): Set<TaskId> {
-        if (Object.keys(this.graph[taskId].dependencies).length == 0) {
+        if (this.graph[taskId].dependencies.size == 0) {
             return new Set([taskId])
         }
         let tasks: Set<TaskId> = new Set()
-        for (const t in this.graph[taskId].dependencies) {
-            const lt = this.getDependencyLeaves(t)
-            lt.forEach((l) => tasks.add(l))
-        }
+        this.graph[taskId].dependencies.forEach(
+            (task) => {
+                const lt = this.getDependencyLeaves(task)
+                lt.forEach((l) => tasks.add(l))
+            }
+        )
         return tasks
     }
 
@@ -331,7 +333,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         if (!this.doesExist(taskId)) {
             return new Error(`task does exist [TaskId: ${taskId}]`)
         }
-        return false
+        return this.graph[taskId].dependencies.size == 0
     }
 
 }

@@ -1,16 +1,10 @@
+import { assert } from "console";
 import { DefaultTaskManager, DefaultTask } from "./indra";
 
 test('construct default tasks manager', () => {
     new DefaultTaskManager()
 });
 
-// GetRepresentation(): T
-
-// GetTopGoals(): TaskId[]
-// GetTaskDependencies(taskId: TaskId): Result<TaskId[]>
-// GetTaskDependees(taskId: TaskId): Result<TaskId[]>
-// CanTaskBeDone(taskId: TaskId): Result<boolean>
-// GetTaskOrdering(rootTaskId: TaskId): Result<TaskId[]>
 
 
 test('task calculate lambda', () => {
@@ -74,3 +68,93 @@ test('remove dependency', () => {
     const res2 = dtm.GetTaskDependees(task2.id)
     expect(res2).toStrictEqual([])
 });
+
+test('get representation', () => {
+    const dtm = new DefaultTaskManager()
+    const r1 = dtm.GetRepresentation()
+    expect(r1).toStrictEqual({})
+    const task1 = new DefaultTask("1", .5, 1)
+    dtm.PutTask(task1)
+    const r2 = dtm.GetRepresentation()
+    const correct: any = {}
+    correct[task1.id] = {
+        "dependees": new Set(),
+        "dependencies": new Set(),
+    }
+    expect(r2).toStrictEqual(correct)
+})
+
+test('get top goals', () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .5, 1)
+    dtm.PutTask(task1)
+    const g = dtm.GetTopGoals()
+    expect(g).toStrictEqual([task1.id])
+
+    const task2 = new DefaultTask("2", .5, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+    const g2 = dtm.GetTopGoals()
+    expect(g2).toStrictEqual([task1.id])
+})
+
+test('get task dependencies', () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .5, 1)
+    dtm.PutTask(task1)
+
+    const task2 = new DefaultTask("2", .5, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+
+    const res = dtm.GetTaskDependencies(task1.id)
+    if ("length" in res) {
+        expect(res).toStrictEqual([task2.id])
+    } else {
+        fail()
+    }
+})
+
+test('get task dependees', () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .5, 1)
+    dtm.PutTask(task1)
+
+    const task2 = new DefaultTask("2", .5, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+
+    const res = dtm.GetTaskDependees(task2.id)
+    expect(res).toStrictEqual([task1.id])
+})
+
+test("can task be done", () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .5, 1)
+    dtm.PutTask(task1)
+
+    const task2 = new DefaultTask("2", .5, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+
+    const t1Res = dtm.CanTaskBeDone(task1.id)
+    expect(t1Res).toBe(false)
+
+    const t2Res = dtm.CanTaskBeDone(task2.id)
+    expect(t2Res).toBe(true)
+})
+
+// GetTaskOrdering(rootTaskId: TaskId): Result<TaskId[]>
+
+test("get task ordering", () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .5, 1)
+    dtm.PutTask(task1)
+
+    const task2 = new DefaultTask("2", .5, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+
+    const ordering1 = dtm.GetTaskOrdering(task1.id)
+    expect(ordering1).toStrictEqual([task2.id, task1.id])
+})
