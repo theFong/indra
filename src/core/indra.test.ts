@@ -144,9 +144,8 @@ test("can task be done", () => {
     expect(t2Res).toBe(true)
 })
 
-// GetTaskOrdering(rootTaskId: TaskId): Result<TaskId[]>
 
-test("get task ordering", () => {
+test("get task ordering trival", () => {
     const dtm = new DefaultTaskManager()
     const task1 = new DefaultTask("1", .5, 1)
     dtm.PutTask(task1)
@@ -157,4 +156,69 @@ test("get task ordering", () => {
 
     const ordering1 = dtm.GetTaskOrdering(task1.id)
     expect(ordering1).toStrictEqual([task2.id, task1.id])
+})
+
+test("get task ordering simple", () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .5, 1)
+    dtm.PutTask(task1)
+
+    const task2 = new DefaultTask("2", .5, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+
+    const task3 = new DefaultTask("3", .1, 1)
+    dtm.PutTask(task3)
+    dtm.AddDependency(task1.id, task3.id)
+
+    const ordering = dtm.GetTaskOrdering(task1.id)
+    expect(ordering).toStrictEqual([task3.id, task2.id, task1.id])
+})
+
+test("get task take biggest lambda", () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .9, 1)
+    dtm.PutTask(task1)
+
+    const task2 = new DefaultTask("2", .9, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+
+
+    const task3 = new DefaultTask("3", .8, 1)
+    dtm.PutTask(task3)
+    dtm.AddDependency(task2.id, task3.id)
+
+    const task4 = new DefaultTask("4", .8, 1)
+    dtm.PutTask(task4)
+    dtm.AddDependency(task3.id, task4.id)
+
+    const task5 = new DefaultTask("5", .8, 1)
+    dtm.PutTask(task5)
+    dtm.AddDependency(task4.id, task5.id)
+
+    const ordering = dtm.GetTaskOrdering(task1.id)
+    expect(ordering).toStrictEqual([task5.id, task4.id, task3.id, task2.id, task1.id])
+})
+
+test("get task don't take biggest lambda", () => {
+    const dtm = new DefaultTaskManager()
+    const task1 = new DefaultTask("1", .9, 1)
+    dtm.PutTask(task1)
+
+    const task2 = new DefaultTask("2", .2, 1)
+    dtm.PutTask(task2)
+    dtm.AddDependency(task1.id, task2.id)
+
+
+    const task3 = new DefaultTask("3", .1, 1)
+    dtm.PutTask(task3)
+    dtm.AddDependency(task1.id, task3.id)
+
+    const task4 = new DefaultTask("4", .9, 1)
+    dtm.PutTask(task4)
+    dtm.AddDependency(task3.id, task4.id)
+
+    const ordering = dtm.GetTaskOrdering(task1.id)
+    expect(ordering).toStrictEqual([task4.id, task3.id, task2.id, task1.id])
 })
