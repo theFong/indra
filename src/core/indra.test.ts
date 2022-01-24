@@ -161,13 +161,16 @@ test("get task ordering trival", () => {
 test("get task ordering simple", () => {
     const dtm = new DefaultTaskManager()
     const task1 = new DefaultTask("1", .5, 1)
+    task1.id = "1"
     dtm.PutTask(task1)
 
     const task2 = new DefaultTask("2", .5, 1)
+    task2.id = "2"
     dtm.PutTask(task2)
     dtm.AddDependency(task1.id, task2.id)
 
     const task3 = new DefaultTask("3", .1, 1)
+    task3.id = "3"
     dtm.PutTask(task3)
     dtm.AddDependency(task1.id, task3.id)
 

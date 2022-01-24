@@ -252,7 +252,7 @@ export class DefaultTaskManager implements TaskManager<AdjacencyMap> {
         // - pop off highest value and add to topoplogical ordering list
         // - put new leaves in Q 
         // - repeat til no more nodes
-        const comp = (a: TaskId, b: TaskId) => sumValues[a] - sumValues[b]
+        const comp = (a: TaskId, b: TaskId) => sumValues[b] - sumValues[a]
         const heap = new Heap<TaskId>(comp);
 
         const leaves = this.getDependencyLeaves(rootTaskId)
